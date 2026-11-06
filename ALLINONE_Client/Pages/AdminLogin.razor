@@ -1,0 +1,15 @@
+@page "/admin/login"
+@inject ApiClient Api
+@inject TokenStore Tokens
+@inject JwtAuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Admin login · AppHub</PageTitle>
+<section class="admin-login-shell"><div class="admin-login-brand"><span class="brand-mark large">A</span><span class="eyebrow">APPHUB ADMIN</span><h1>Manage your app directory</h1><p>Add listings, update details and control which apps appear publicly.</p></div><div class="admin-login-form"><a class="back-link" href="/">← Public app directory</a><h2>Admin sign in</h2><p>Use the administrator account configured for this installation.</p><EditForm Model="model" OnValidSubmit="Submit"><div class="form-field"><label for="adminUser">Username</label><InputText id="adminUser" class="form-control" @bind-Value="model.UserName" autocomplete="username" /></div><div class="form-field"><label for="adminPassword">Password</label><InputText id="adminPassword" class="form-control" type="password" @bind-Value="model.Password" autocomplete="current-password" /></div><button class="btn btn-primary w-100" disabled="@busy">@(busy ? "Signing in…" : "Sign in to admin")</button></EditForm>@if (error is not null) { <div class="form-error" role="alert">@error</div> }</div></section>
+
+@code {
+    private LoginRequest model = new();
+    private string? error;
+    private bool busy;
+    private async Task Submit() { busy = true; error = null; try { var result = await Api.AdminLoginAsync(model); Tokens.Set(result.AccessToken, result.UserName, result.Role); AuthState.NotifyChanged(); Navigation.NavigateTo("/admin/apps"); } catch (Exception ex) { error = ex.Message; } finally { busy = false; } }
+}

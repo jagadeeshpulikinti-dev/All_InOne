@@ -1,0 +1,59 @@
+@page "/admin/apps"
+@attribute [Authorize(Roles = "Admin")]
+@inject ApiClient Api
+
+<PageTitle>Manage apps · AppHub</PageTitle>
+<section class="page-heading admin-heading"><div><span class="eyebrow">ADMINISTRATION</span><h1>Manage app listings</h1><p>Create and maintain apps shown in the public AppHub directory.</p></div><button class="btn btn-primary" @onclick="NewApp">＋ Add app</button></section>
+@if (error is not null) { <div class="form-error" role="alert">@error</div> }
+<div class="admin-layout">
+    <section class="admin-list-panel"><h2>Listings <span class="count-pill">@(items?.Count ?? 0)</span></h2>
+        @if (items is null) { <p class="loading-state">Loading listings…</p> }
+        else if (items.Count == 0) { <p>No apps yet. Add your first listing.</p> }
+        else { <div class="admin-list">@foreach (var item in items) { <article class="admin-list-item"><span class="app-monogram tone-blue">@Initials(item.Name)</span><div class="admin-list-copy"><strong>@item.Name</strong><small>@item.Category · @(item.IsActive ? "Published" : "Archived")</small></div><button class="btn btn-soft btn-sm" @onclick="() => Edit(item)">Edit</button>@if (item.IsActive) { <button class="btn btn-quiet btn-sm" title="Archive listing" @onclick="() => Archive(item)">Archive</button> }</article> }</div> }
+    </section>
+    <section class="admin-editor-panel"><div class="editor-heading"><div><span class="eyebrow">@(editingId is null ? "NEW LISTING" : "EDIT LISTING")</span><h2>@(editingId is null ? "Add an app" : "Update app")</h2></div>@if (editingId is not null) { <button class="text-button" @onclick="NewApp">Cancel edit</button> }</div>
+        <EditForm Model="form" OnValidSubmit="Save">
+            <div class="admin-form-grid"><div class="form-field"><label>App name *</label><InputText class="form-control" @bind-Value="form.Name" /></div><div class="form-field"><label>Category *</label><InputText class="form-control" placeholder="Food & Dining" @bind-Value="form.Category" /></div><div class="form-field full"><label>Tagline *</label><InputText class="form-control" @bind-Value="form.Tagline" /></div><div class="form-field full"><label>Description *</label><InputTextArea class="form-control" rows="3" @bind-Value="form.Description" /></div><div class="form-field"><label>Official website (HTTPS) *</label><InputText class="form-control" placeholder="https://example.com" @bind-Value="form.WebsiteUrl" /></div><div class="form-field"><label>Logo URL (optional)</label><InputText class="form-control" placeholder="/images/apps/logo.svg" @bind-Value="form.LogoUrl" /></div><div class="form-field"><label>Platforms</label><InputText class="form-control" placeholder="Web, Android, iOS" @bind-Value="form.Platforms" /></div><div class="form-field"><label>Pricing details</label><InputText class="form-control" placeholder="See provider website" @bind-Value="form.Pricing" /></div><div class="form-field"><label>Rating (optional, 0–5)</label><InputNumber class="form-control" @bind-Value="form.Rating" /></div><div class="form-field full"><label>Key features (one per line)</label><InputTextArea class="form-control" rows="4" @bind-Value="featuresText" /></div><div class="form-field full form-check"><InputCheckbox id="published" class="form-check-input" @bind-Value="form.IsActive" /><label class="form-check-label" for="published">Published in public directory</label></div></div>
+            <button class="btn btn-primary" disabled="@saving">@(saving ? "Saving…" : editingId is null ? "Add listing" : "Save changes")</button>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<AppInfo>? items;
+    private AppUpsertRequest form = NewForm();
+    private int? editingId;
+    private string featuresText = "";
+    private string? error;
+    private bool saving;
+    protected override Task OnInitializedAsync() => Reload();
+    private async Task Reload() { try { items = await Api.GetAdminAppsAsync(); error = null; } catch (Exception ex) { error = ex.Message; } }
+    private void NewApp() { editingId = null; form = NewForm(); featuresText = ""; }
+    private void Edit(AppInfo app) { editingId = app.Id; form = new() { Name = app.Name, Category = app.Category, Tagline = app.Tagline, Description = app.Description, WebsiteUrl = app.WebsiteUrl, LogoUrl = app.LogoUrl, Platforms = app.Platforms, Pricing = app.Pricing, Rating = app.Rating, IsActive = app.IsActive }; featuresText = string.Join(Environment.NewLine, app.Features); }
+    private async Task Save() 
+    { 
+        saving = true;
+        error = null;
+        form.Features = featuresText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        try 
+        { 
+            if (editingId is int id) 
+            await Api.UpdateAppAsync(id, form);
+            else
+            await Api.CreateAppAsync(form); 
+            NewApp(); 
+            await Reload();
+        } 
+        catch (Exception ex) 
+        { 
+            error = ex.Message;
+        } 
+        finally 
+        { 
+            saving = false;
+        }
+    }
+    private async Task Archive(AppInfo app) { try { await Api.DeleteAppAsync(app.Id); await Reload(); } catch (Exception ex) { error = ex.Message; } }
+    private static AppUpsertRequest NewForm() => new() { Platforms = "Web, Android, iOS", Pricing = "See provider website", IsActive = true };
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+}

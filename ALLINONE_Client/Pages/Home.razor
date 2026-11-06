@@ -1,0 +1,120 @@
+@page "/"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>AppHub — discover and compare apps</PageTitle>
+<section class="hero" id="about">
+    <div class="hero-copy">
+        <span class="eyebrow">THE APP DISCOVERY HUB</span>
+        <h1>Discover. Compare.<br /><span>Choose what works for you.</span></h1>
+        <p>Find useful apps across food, shopping, entertainment and more. Compare the details before you head to the provider.</p>
+        <div class="hero-search">
+            <span aria-hidden="true">⌕</span>
+            <input class="form-control" aria-label="Search apps" placeholder="Search apps, e.g. Zomato, Swiggy, Blinkit…" @bind="searchText" @bind:event="oninput" />
+            @if (!string.IsNullOrWhiteSpace(searchText)) { <button class="search-clear" @onclick="() => searchText = string.Empty" aria-label="Clear search">×</button> }
+        </div>
+    </div>
+    <div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="app-tile tile-food">🍽</div><div class="app-tile tile-shop">🛍</div><div class="app-tile tile-play">▶</div><div class="hero-glass"><span class="glass-dot"></span><span class="glass-dot"></span><span class="glass-dot"></span><div class="glass-line"></div><div class="glass-line short"></div></div></div>
+</section>
+
+<section id="categories" class="category-strip" aria-label="Browse by category">
+    <button class="category-chip @(selectedCategory == "All" ? "selected" : "")" @onclick='() => SelectCategory("All")'><span>✦</span> All apps</button>
+    @if (apps is not null)
+    {
+        @foreach (var category in apps.Select(a => a.Category).Distinct().OrderBy(x => x))
+        {
+            <button class="category-chip @(selectedCategory == category ? "selected" : "")" @onclick="() => SelectCategory(category)"><span>@CategoryIcon(category)</span> @category</button>
+        }
+    }
+</section>
+
+<section id="apps" class="catalog-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">CURATED FOR YOU</span><h2>Explore apps</h2><p>Search, filter, then select two or more to compare.</p></div>
+        <div class="catalog-actions">
+            @if (selectedIds.Count > 0) { <span class="selection-count">@selectedIds.Count selected</span> }
+            <button class="btn btn-primary" disabled="@(selectedIds.Count < 2)" @onclick="CompareSelected">Compare selected <span aria-hidden="true">→</span></button>
+        </div>
+    </div>
+    @if (selectionMessage is not null) { <p class="form-error" role="alert">@selectionMessage</p> }
+    @if (error is not null)
+    {
+        <div class="empty-state"><h3>App listings are temporarily unavailable</h3><p>@error</p><button class="btn btn-soft" @onclick="LoadApps">Try again</button></div>
+    }
+    else if (apps is null) { <div class="loading-state">Loading the app directory…</div> }
+    else if (!FilteredApps.Any()) { <div class="empty-state"><h3>No apps found</h3><p>Try another search or category.</p><button class="btn btn-soft" @onclick="ClearFilters">Clear filters</button></div> }
+    else
+    {
+        <div class="app-grid">
+            @foreach (var app in FilteredApps)
+            {
+                <article class="app-card">
+                    <label class="compare-toggle"><input type="checkbox" checked="@selectedIds.Contains(app.Id)" @onchange="e => ToggleCompare(app.Id, e)" /><span>Compare</span></label>
+                    <a class="app-card-main" href="@($"/apps/{app.Slug}")">
+                        @if (!string.IsNullOrWhiteSpace(app.LogoUrl)) { <img class="app-logo" src="@app.LogoUrl" alt="@app.Name logo" /> }
+                        else { <span class="app-logo app-monogram @CategoryClass(app.Category)">@Initials(app.Name)</span> }
+                        <span class="app-category">@app.Category</span>
+                        <h3>@app.Name</h3>
+                        <span class="app-tagline">@app.Tagline</span>
+                        <span class="app-rating">@(app.Rating.HasValue ? $"★ {app.Rating:0.0}" : "Not rated") <span>·</span> @app.Pricing</span>
+                    </a>
+                    <div class="app-card-footer"><a class="btn btn-soft" href="@($"/apps/{app.Slug}")">View details</a><a class="external-link" href="@app.WebsiteUrl" target="_blank" rel="noopener noreferrer" aria-label="Visit @app.Name website">Visit site ↗</a></div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="compare-callout"><div><span class="eyebrow">MAKE A CONFIDENT CHOICE</span><h2>Shortlist. Compare. Decide.</h2><p>Compare categories, features, platforms, pricing and verified ratings side by side.</p></div><a class="btn btn-light" href="/compare">Explore comparison <span aria-hidden="true">→</span></a></section>
+
+@code {
+    private IReadOnlyList<AppInfo>? apps;
+    private readonly HashSet<int> selectedIds = [];
+    private string searchText = "";
+    private string selectedCategory = "All";
+    private string? selectionMessage;
+    private string? error;
+    private IEnumerable<AppInfo> FilteredApps => (apps ?? []).Where(a => selectedCategory == "All" || a.Category.Equals(selectedCategory, StringComparison.OrdinalIgnoreCase)).Where(a => string.IsNullOrWhiteSpace(searchText) || $"{a.Name} {a.Category} {a.Tagline} {a.Description} {a.Platforms}".Contains(searchText.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => LoadApps();
+    private async Task LoadApps() { error = null; try { apps = await Api.GetAppsAsync(); } catch (Exception ex) { error = ex.Message; } }
+    private void SelectCategory(string category) => selectedCategory = category;
+    private void ClearFilters() { searchText = ""; selectedCategory = "All"; }
+    private void ToggleCompare(int id, ChangeEventArgs args)
+    {
+        var isChecked = args.Value is true || args.Value?.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+        if (isChecked && selectedIds.Count >= 4 && !selectedIds.Contains(id)) { selectionMessage = "Compare up to four apps at a time."; return; }
+        selectionMessage = null;
+        if (isChecked) selectedIds.Add(id); else selectedIds.Remove(id);
+    }
+    private void CompareSelected() { if (selectedIds.Count >= 2) Navigation.NavigateTo($"/compare?apps={string.Join(',', selectedIds)}"); }
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    //private static string CategoryIcon(string category) => category.ToLowerInvariant() switch { "food & dining" => "♨", "groceries" => "◈", "shopping" => "▣", "entertainment" => "▶", _ => "✦" };
+    private static string CategoryIcon(string category) => category.ToLowerInvariant() switch
+    {
+        "food & dining" => "♨",
+        "groceries" => "◈",
+        "shopping" => "▣",
+        "entertainment" => "▶",
+        "education" => "🎓",
+        "ai" => "🤖",
+        "technical tools" => "⚙",
+        "development tools" => "💻",
+        _ => "✦"
+    };
+    //private static string CategoryClass(string category) => category.ToLowerInvariant() switch { "food & dining" => "tone-coral", "groceries" => "tone-lime", "shopping" => "tone-blue", "entertainment" => "tone-violet", _ => "tone-blue" };
+
+    private static string CategoryClass(string category) =>
+    category.ToLowerInvariant() switch
+    {
+        "food & dining" => "tone-coral",
+        "groceries" => "tone-lime",
+        "shopping" => "tone-blue",
+        "entertainment" => "tone-violet",
+        "education" => "tone-orange",
+        "ai" => "tone-purple",
+        "technical tools" => "tone-teal",
+        "development tools" => "tone-indigo",
+        _ => "tone-blue"
+    };
+}

@@ -1,0 +1,48 @@
+@page "/compare"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Compare apps · AppHub</PageTitle>
+<section class="page-heading"><div><span class="eyebrow">SIDE BY SIDE</span><h1>Compare apps</h1><p>Compare app details to find a fit for your needs. Ratings are shown only when a listing owner has provided them.</p></div></section>
+@if (error is not null) { <div class="empty-state"><h2>Unable to load comparison</h2><p>@error</p><a href="/">Browse apps</a></div> }
+else if (apps is null) { <div class="loading-state">Loading comparison…</div> }
+else if (selected.Count < 2)
+{
+    <div class="empty-state"><div class="empty-icon">⇄</div><h2>Select at least two apps</h2><p>Choose apps from the directory to compare their category, features, platform and pricing.</p><a class="btn btn-primary" href="/#apps">Browse apps</a></div>
+}
+else
+{
+    <div class="compare-toolbar"><div><strong>@selected.Count apps selected</strong><span class="text-muted"> · Select a category to highlight the closest fit</span></div><select class="form-select fit-selector" aria-label="Choose a category for best fit" @bind="fitCategory"><option value="">No specific category</option>@foreach (var category in selected.Select(a => a.Category).Distinct()) { <option value="@category">@category</option> }</select></div>
+    @if (!string.IsNullOrWhiteSpace(fitCategory) && selected.FirstOrDefault(a => a.Category == fitCategory) is { } fit) { <div class="fit-banner"><span class="fit-star">✦</span><span><strong>Closest category fit: @fit.Name</strong><small>It matches “@fitCategory”. This is a category match, not a sponsored or overall quality ranking.</small></span></div> }
+    <div class="compare-table-wrap"><table class="compare-table"><thead><tr><th scope="col">App details</th>@foreach (var item in selected) { <th scope="col"><div class="compare-app-head">@if (!string.IsNullOrWhiteSpace(item.LogoUrl)) { <img src="@item.LogoUrl" alt="" /> } else { <span class="app-monogram tone-blue">@Initials(item.Name)</span> }<strong>@item.Name</strong><a href="@($"/apps/{item.Slug}")">View details ↗</a></div></th> }</tr></thead><tbody>
+        <tr><th scope="row">Category</th>@foreach (var item in selected) { <td>@item.Category</td> }</tr>
+        <tr><th scope="row">Overview</th>@foreach (var item in selected) { <td>@item.Description</td> }</tr>
+        <tr><th scope="row">Key features</th>@foreach (var item in selected) { <td><ul class="compare-features">@foreach (var feature in item.Features) { <li>@feature</li> }</ul></td> }</tr>
+        <tr><th scope="row">Platforms</th>@foreach (var item in selected) { <td>@item.Platforms</td> }</tr>
+        <tr><th scope="row">Pricing</th>@foreach (var item in selected) { <td>@item.Pricing</td> }</tr>
+        <tr><th scope="row">Rating</th>@foreach (var item in selected) { <td>@(item.Rating.HasValue ? $"★ {item.Rating:0.0} / 5" : "Not provided")</td> }</tr>
+        <tr><th scope="row">Website</th>@foreach (var item in selected) { <td><a class="btn btn-soft" href="@item.WebsiteUrl" target="_blank" rel="noopener noreferrer">Visit site ↗</a></td> }</tr>
+    </tbody></table></div>
+    <button class="btn btn-soft mt-4" @onclick='() => Navigation.NavigateTo("/#apps")'>← Choose other apps</button>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "apps")] 
+    public string? AppIds { get; set; }
+    private IReadOnlyList<AppInfo>? apps;
+    private List<AppInfo> selected = [];
+    private string fitCategory = "";
+    private string? error;
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            apps = await Api.GetAppsAsync();
+            var ids = (AppIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var id) ? id : -1).ToHashSet();
+            selected = apps.Where(x => ids.Contains(x.Id)).Take(4).ToList();
+            if (selected.Count > 0 && !selected.Any(x => x.Category == fitCategory)) fitCategory = "";
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+}

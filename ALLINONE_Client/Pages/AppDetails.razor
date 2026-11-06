@@ -1,0 +1,29 @@
+@page "/apps/{Slug}"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(app?.Name ?? "App details") · AppHub</PageTitle>
+@if (error is not null) { <div class="empty-state"><h1>App not found</h1><p>@error</p><a class="btn btn-primary" href="/">Browse apps</a></div> }
+else if (app is null) { <div class="loading-state">Loading app details…</div> }
+else
+{
+    <p class="breadcrumbs"><a href="/">Home</a> <span>/</span> @app.Category <span>/</span> @app.Name</p>
+    <section class="details-hero">
+        @if (!string.IsNullOrWhiteSpace(app.LogoUrl)) { <img class="app-logo detail-logo" src="@app.LogoUrl" alt="@app.Name logo" /> }
+        else { <span class="app-logo app-monogram detail-logo tone-blue">@Initials(app.Name)</span> }
+        <div class="detail-heading"><span class="app-category">@app.Category</span><h1>@app.Name</h1><p class="lead">@app.Tagline</p><div class="detail-actions"><a class="btn btn-primary" href="@app.WebsiteUrl" target="_blank" rel="noopener noreferrer">Visit official website ↗</a><button class="btn btn-soft" @onclick='() => Navigation.NavigateTo("/compare")'>Compare apps</button></div></div>
+    </section>
+    <section class="details-content">
+        <article class="details-panel"><h2>About this app</h2><p>@app.Description</p><h3>Key features</h3><ul>@foreach (var feature in app.Features) { <li>@feature</li> }</ul></article>
+        <aside class="details-panel facts-panel"><h2>At a glance</h2><dl><dt>Category</dt><dd>@app.Category</dd><dt>Platforms</dt><dd>@app.Platforms</dd><dt>Pricing</dt><dd>@app.Pricing</dd><dt>Rating</dt><dd>@(app.Rating.HasValue ? $"★ {app.Rating:0.0} / 5" : "Not provided")</dd></dl><p class="data-note">Details are provided by the listing owner. Confirm current offers and availability on the official website.</p></aside>
+    </section>
+    <a class="back-link" href="/">← Back to app discovery</a>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+    private AppInfo? app;
+    private string? error;
+    protected override async Task OnParametersSetAsync() { try { app = await Api.GetAppAsync(Slug); if (app is null) error = "This listing may have been removed or is unavailable."; } catch (Exception ex) { error = ex.Message; } }
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+}

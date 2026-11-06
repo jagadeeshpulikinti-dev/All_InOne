@@ -1,0 +1,15 @@
+@page "/register"
+@inject ApiClient Api
+@inject TokenStore Tokens
+@inject JwtAuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Create account · AppHub</PageTitle>
+<section class="auth-card"><a class="back-link" href="/">← Back to AppHub</a><span class="eyebrow">JOIN APPHUB</span><h1>Create your account</h1><p>Accounts unlock personal features. Browsing and comparing apps is open to everyone.</p><EditForm Model="model" OnValidSubmit="Submit"><div class="form-field"><label for="registerUser">Username</label><InputText id="registerUser" class="form-control" @bind-Value="model.UserName" autocomplete="username" /></div><div class="form-field"><label for="registerPassword">Password</label><InputText id="registerPassword" class="form-control" type="password" @bind-Value="model.Password" autocomplete="new-password" /><small class="field-hint">Use at least 12 characters.</small></div><button class="btn btn-primary w-100" disabled="@busy">@(busy ? "Creating account…" : "Create account")</button></EditForm>@if (error is not null) { <div class="form-error" role="alert">@error</div> }<p class="auth-switch">Already have an account? <a href="/login">Sign in</a></p></section>
+
+@code {
+    private RegisterRequest model = new();
+    private string? error;
+    private bool busy;
+    private async Task Submit() { busy = true; error = null; try { var result = await Api.RegisterAsync(model); Tokens.Set(result.AccessToken, result.UserName, result.Role); AuthState.NotifyChanged(); Navigation.NavigateTo("/"); } catch (Exception ex) { error = ex.Message; } finally { busy = false; } }
+}

@@ -1,0 +1,15 @@
+@page "/login"
+@inject ApiClient Api
+@inject TokenStore Tokens
+@inject JwtAuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · AppHub</PageTitle>
+<section class="auth-card"><a class="back-link" href="/">← Back to AppHub</a><span class="eyebrow">WELCOME BACK</span><h1>Sign in</h1><p>Sign in to save your place and use account features.</p><EditForm Model="model" OnValidSubmit="Submit"><div class="form-field"><label for="loginUser">Username</label><InputText id="loginUser" class="form-control" @bind-Value="model.UserName" autocomplete="username" /></div><div class="form-field"><label for="loginPassword">Password</label><InputText id="loginPassword" class="form-control" type="password" @bind-Value="model.Password" autocomplete="current-password" /></div><button class="btn btn-primary w-100" disabled="@busy">@(busy ? "Signing in…" : "Sign in")</button></EditForm>@if (error is not null) { <div class="form-error" role="alert">@error</div> }<p class="auth-switch">New to AppHub? <a href="/register">Create an account</a></p></section>
+
+@code {
+    private LoginRequest model = new();
+    private string? error;
+    private bool busy;
+    private async Task Submit() { busy = true; error = null; try { var result = await Api.LoginAsync(model); Tokens.Set(result.AccessToken, result.UserName, result.Role); AuthState.NotifyChanged(); Navigation.NavigateTo(result.Role == "Admin" ? "/admin/apps" : "/"); } catch (Exception ex) { error = ex.Message; } finally { busy = false; } }
+}

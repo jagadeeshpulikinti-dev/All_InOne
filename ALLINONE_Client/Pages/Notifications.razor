@@ -1,0 +1,21 @@
+@page "/notifications"
+@attribute [Authorize]
+@inject ApiClient Api
+<PageTitle>Notifications</PageTitle>
+<h1>Notifications</h1>
+<EditForm Model="form" OnValidSubmit="Create">
+    <div class="input-group mb-3"><InputText class="form-control" placeholder="Write a notification" @bind-Value="form.Message" /><button class="btn btn-primary">Add</button></div>
+</EditForm>
+@if (error is not null) { <p role="alert">@error</p> }
+@if (items is null) { <p>Loading notifications…</p> }
+else if (items.Count == 0) { <p>No notifications yet.</p> }
+else { <ul class="list-group">@foreach (var item in items) { <li class="list-group-item d-flex justify-content-between"><span>@item.Message <small>@item.CreatedAtUtc.ToLocalTime() @(item.IsRead ? "· Read" : "")</small></span>@if (!item.IsRead) { <button class="btn btn-sm btn-outline-secondary" @onclick="() => MarkRead(item.Id)">Mark read</button> }</li> }</ul> }
+@code {
+    private IReadOnlyList<UserNotification>? items;
+    private NotificationCreateRequest form = new();
+    private string? error;
+    protected override Task OnInitializedAsync() => Reload();
+    private async Task Reload() { try { items = await Api.GetNotificationsAsync(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task Create() { try { await Api.CreateNotificationAsync(form.Message); form = new(); await Reload(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task MarkRead(string id) { try { await Api.MarkReadAsync(id); await Reload(); } catch (Exception ex) { error = ex.Message; } }
+}

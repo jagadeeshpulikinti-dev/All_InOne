@@ -1,0 +1,29 @@
+<header class="site-header">
+    <div class="site-header-inner">
+        <a class="brand" href="/" aria-label="AppHub home"><span class="brand-mark">A</span><span>AppHub</span></a>
+        <nav class="main-nav" aria-label="Main navigation">
+            <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+            <a href="/#apps">Apps</a>
+            <NavLink href="/compare">Compare</NavLink>
+            <a href="/#categories">Categories</a>
+            <a href="/#about">About</a>
+        </nav>
+        <div class="header-actions">
+            <AuthorizeView>
+                <Authorized Context="auth">
+                    @if (auth.User.IsInRole("Admin")) { <a class="btn btn-soft" href="/admin/apps">Admin</a> }
+                    <span class="user-chip">@auth.User.Identity?.Name</span>
+                    <button class="btn btn-primary" @onclick="Logout">Sign out</button>
+                </Authorized>
+                <NotAuthorized><a class="btn btn-primary" href="/login">Login</a></NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+@code {
+    [Inject] private TokenStore Tokens { get; set; } = default!;
+    [Inject] private JwtAuthenticationStateProvider AuthState { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    private void Logout() { Tokens.Clear(); AuthState.NotifyChanged(); Navigation.NavigateTo("/"); }
+}
